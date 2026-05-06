@@ -1,0 +1,20 @@
+FROM node:20-bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    libreoffice \
+    fonts-noto-cjk \
+    fontconfig \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+ENV PORT=3000
+ENV LIBREOFFICE_PATH=/usr/bin/libreoffice
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:dev"]
