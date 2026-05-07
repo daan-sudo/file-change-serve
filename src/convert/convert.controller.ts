@@ -44,6 +44,9 @@ export class ConvertController {
       'Content-Disposition',
       `attachment; filename="${fallbackFileName}"; filename*=UTF-8''${encodedFileName}`,
     );
+    response.on('finish', () => {
+      this.convertService.markDownloaded(id);
+    });
 
     return this.convertService.createDownloadStream(file.path).pipe(response);
   }

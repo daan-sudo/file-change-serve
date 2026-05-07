@@ -3,11 +3,13 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, readdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join, parse } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -23,6 +25,7 @@ interface UploadedOfficeFile {
 
 interface ConvertJob {
   id: string;
+  taskDir: string;
   originalName: string;
   outputName: string;
   sourcePath: string;
@@ -31,6 +34,8 @@ interface ConvertJob {
   status: ConvertStatus;
   message: string;
   createdAt: number;
+  finishedAt?: number;
+  cleanupAt?: number;
 }
 
 export interface ConvertProgress {
@@ -43,7 +48,7 @@ export interface ConvertProgress {
 }
 
 @Injectable()
-export class ConvertService {
+export class ConvertService implements OnModuleInit, OnModuleDestroy {
   private readonly supportedExts = new Set([
     'doc',
     'docx',
@@ -54,7 +59,29 @@ export class ConvertService {
   ]);
   private readonly maxSize = 50 * 1024 * 1024;
   private readonly workspace = join(process.cwd(), 'storage');
+  private readonly completedTtlMs = Number(
+    process.env.CONVERT_COMPLETED_TTL_MS ?? 30 * 60 * 1000,
+  );
+  private readonly downloadedTtlMs = Number(
+    process.env.CONVERT_DOWNLOADED_TTL_MS ?? 60 * 1000,
+  );
+  private readonly cleanupIntervalMs = Number(
+    process.env.CONVERT_CLEANUP_INTERVAL_MS ?? 60 * 1000,
+  );
   private readonly jobs = new Map<string, ConvertJob>();
+  private cleanupTimer?: ReturnType<typeof setInterval>;
+
+  onModuleInit() {
+    this.cleanupTimer = setInterval(() => {
+      void this.cleanupExpiredJobs();
+    }, this.cleanupIntervalMs);
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+    }
+  }
 
   async createJob(file?: UploadedOfficeFile): Promise<ConvertProgress> {
     if (!file) {
@@ -83,6 +110,7 @@ export class ConvertService {
 
     const job: ConvertJob = {
       id,
+      taskDir,
       originalName: basename(originalName),
       outputName,
       sourcePath,
@@ -154,20 +182,31 @@ export class ConvertService {
       job.progress = 100;
       job.status = 'done';
       job.message = '转换完成';
+      this.scheduleCleanup(job, this.completedTtlMs);
     } catch (error) {
       job.status = 'error';
       job.progress = 100;
       job.message = error instanceof Error ? error.message : '转换失败';
+      this.scheduleCleanup(job, this.completedTtlMs);
     }
+  }
+
+  markDownloaded(id: string) {
+    const job = this.getJob(id);
+    this.scheduleCleanup(job, this.downloadedTtlMs);
   }
 
   private findLibreOffice() {
     const candidates = [
       process.env.LIBREOFFICE_PATH,
+      '/usr/bin/libreoffice',
+      '/usr/bin/soffice',
+      '/usr/local/bin/libreoffice',
+      '/usr/local/bin/soffice',
+      '/usr/lib/libreoffice/program/soffice',
       '/Applications/LibreOffice.app/Contents/MacOS/soffice',
       '/usr/local/bin/soffice',
       '/opt/homebrew/bin/soffice',
-      '/usr/bin/libreoffice',
     ].filter(Boolean) as string[];
 
     return candidates.find((candidate) => existsSync(candidate));
@@ -185,6 +224,30 @@ export class ConvertService {
 
   createDownloadStream(path: string) {
     return createReadStream(path);
+  }
+
+  private scheduleCleanup(job: ConvertJob, ttlMs: number) {
+    const now = Date.now();
+    job.finishedAt = job.finishedAt ?? now;
+    job.cleanupAt = now + ttlMs;
+  }
+
+  private async cleanupExpiredJobs() {
+    const now = Date.now();
+
+    await Promise.all(
+      Array.from(this.jobs.values()).map(async (job) => {
+        if (!job.cleanupAt || job.cleanupAt > now) {
+          return;
+        }
+
+        try {
+          await rm(job.taskDir, { recursive: true, force: true });
+        } finally {
+          this.jobs.delete(job.id);
+        }
+      }),
+    );
   }
 
   private async findConvertedPdf(job: ConvertJob) {

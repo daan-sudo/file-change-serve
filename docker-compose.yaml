@@ -32,10 +32,11 @@
 
 # 上面是自己部署的dockercompose 下面是用cicd实现的
 
-version: '3.8'
 services:
   nest-app:
-    # 关键修改 1：指定从 Docker Hub 拉取你构建好的镜像，而不是在本地构建
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
     image: daanyayaya/file-change-serve:latest
     container_name: file-change-serve
     # 关键修改 2：引用本地的环境变量文件，存放 OSS 密码等敏感信息
@@ -46,6 +47,14 @@ services:
     #   - redis-container
     ports:
       - 4005:4005 # 注意这里要和 Dockerfile 中 EXPOSE 的端口一致
+    environment:
+      PORT: 4005
+      LIBREOFFICE_PATH: /usr/bin/libreoffice
+      CONVERT_COMPLETED_TTL_MS: 1800000
+      CONVERT_DOWNLOADED_TTL_MS: 60000
+      CONVERT_CLEANUP_INTERVAL_MS: 60000
+    volumes:
+      - /volume2/docker/file-change-serve/storage:/app/storage
     networks:
       - common-network
     # 关键修改 3：添加重启策略，确保服务稳定
