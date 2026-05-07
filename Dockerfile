@@ -31,7 +31,7 @@ RUN npm install --production
 # 设置运行时的环境变量
 ENV NODE_ENV=production
 
-EXPOSE 4000
+EXPOSE 4005
 
 
 CMD ["node", "/app/main.js"]

@@ -39,13 +39,13 @@ services:
     image: daanyayaya/file-change-serve:latest
     container_name: file-change-serve
     # 关键修改 2：引用本地的环境变量文件，存放 OSS 密码等敏感信息
-    env_file:
-      - .env
-    depends_on:
-      - mysql-container
-      - redis-container
+    # env_file:
+    #   - .env
+    # depends_on:
+    #   - mysql-container
+    #   - redis-container
     ports:
-      - 4000:4000 # 注意这里要和 Dockerfile 中 EXPOSE 的端口一致
+      - 4005:4005 # 注意这里要和 Dockerfile 中 EXPOSE 的端口一致
     networks:
       - common-network
     # 关键修改 3：添加重启策略，确保服务稳定
