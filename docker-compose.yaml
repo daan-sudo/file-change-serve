@@ -1,0 +1,79 @@
+# version: '3.8'
+# services:
+#   nest-app:
+#     build:
+#       context: ./
+#       dockerfile: ./Dockerfile
+#     depends_on:
+#       - mysql-container
+#       - redis-container
+#     ports:
+#       - 3006:3006
+#     networks:
+#       - common-network
+#   mysql-container:
+#     image: mysql
+#     volumes:
+#       - /volume2/docker/mysql:/var/lib/mysql
+#     environment:
+#       MYSQL_DATABASE: vue3-nest-admin
+#       MYSQL_ROOT_PASSWORD: 123456
+#     networks:
+#       - common-network
+#   redis-container:
+#     image: redis
+#     volumes:
+#       - /volume2/docker/redis:/data
+#     networks:
+#       - common-network
+# networks:
+#   common-network:
+#     driver: bridge
+
+# 上面是自己部署的dockercompose 下面是用cicd实现的
+
+version: '3.8'
+services:
+  nest-app:
+    # 关键修改 1：指定从 Docker Hub 拉取你构建好的镜像，而不是在本地构建
+    image: daanyayaya/file-change-serve:latest
+    container_name: file-change-serve
+    # 关键修改 2：引用本地的环境变量文件，存放 OSS 密码等敏感信息
+    env_file:
+      - .env
+    depends_on:
+      - mysql-container
+      - redis-container
+    ports:
+      - 4000:4000 # 注意这里要和 Dockerfile 中 EXPOSE 的端口一致
+    networks:
+      - common-network
+    # 关键修改 3：添加重启策略，确保服务稳定
+    restart: always
+
+  # mysql-container:
+  #   image: mysql # 建议明确版本，防止镜像自动升级导致不兼容
+  #   ports:
+  #     - '3306:3306' # 必须添加这一行，左边是 NAS 端口，右边是容器端口
+  #   container_name: mysql-container
+  #   volumes:
+  #     - /volume2/docker/mysql:/var/lib/mysql
+  #   environment:
+  #     MYSQL_DATABASE: vue3-nest-admin
+  #     MYSQL_ROOT_PASSWORD: 123456
+  #   networks:
+  #     - common-network
+  #   restart: always
+
+  # redis-container:
+  #   image: redis:alpine
+  #   container_name: redis-container
+  #   volumes:
+  #     - /volume2/docker/redis:/data
+  #   networks:
+  #     - common-network
+  #   restart: always
+
+networks:
+  common-network:
+    driver: bridge
