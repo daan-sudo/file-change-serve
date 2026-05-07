@@ -3,6 +3,8 @@ import {
   Get,
   Param,
   Post,
+  Headers,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -24,8 +26,9 @@ export class ConvertController {
       buffer: Buffer;
       size: number;
     },
+    @Headers('x-license-code') licenseCode?: string,
   ) {
-    return this.convertService.createJob(file);
+    return this.convertService.createJob(file, licenseCode);
   }
 
   @Get(':id/progress')
@@ -34,7 +37,12 @@ export class ConvertController {
   }
 
   @Get(':id/download')
-  download(@Param('id') id: string, @Res() response: Response) {
+  download(
+    @Param('id') id: string,
+    @Query('licenseCode') licenseCode: string | undefined,
+    @Res() response: Response,
+  ) {
+    this.convertService.assertLicenseCode(licenseCode);
     const file = this.convertService.getDownloadInfo(id);
     const encodedFileName = encodeURIComponent(file.fileName);
     const fallbackFileName = file.fileName.replace(/[^\x20-\x7E]/g, '_');

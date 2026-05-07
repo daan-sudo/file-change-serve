@@ -12,6 +12,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join, parse } from 'node:path';
 import { promisify } from 'node:util';
+import { LicenseService } from '../license/license.service';
 
 const execFileAsync = promisify(execFile);
 
@@ -71,6 +72,8 @@ export class ConvertService implements OnModuleInit, OnModuleDestroy {
   private readonly jobs = new Map<string, ConvertJob>();
   private cleanupTimer?: ReturnType<typeof setInterval>;
 
+  constructor(private readonly licenseService: LicenseService) {}
+
   onModuleInit() {
     this.cleanupTimer = setInterval(() => {
       void this.cleanupExpiredJobs();
@@ -83,7 +86,12 @@ export class ConvertService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async createJob(file?: UploadedOfficeFile): Promise<ConvertProgress> {
+  async createJob(
+    file?: UploadedOfficeFile,
+    licenseCode?: string,
+  ): Promise<ConvertProgress> {
+    this.licenseService.assertValidCode(licenseCode);
+
     if (!file) {
       throw new BadRequestException('请上传文件');
     }
@@ -142,6 +150,10 @@ export class ConvertService implements OnModuleInit, OnModuleDestroy {
       path: job.outputPath,
       fileName: job.outputName,
     };
+  }
+
+  assertLicenseCode(licenseCode?: string) {
+    this.licenseService.assertValidCode(licenseCode);
   }
 
   private async runConvert(job: ConvertJob) {

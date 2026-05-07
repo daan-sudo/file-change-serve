@@ -53,8 +53,11 @@ services:
       CONVERT_COMPLETED_TTL_MS: 1800000
       CONVERT_DOWNLOADED_TTL_MS: 60000
       CONVERT_CLEANUP_INTERVAL_MS: 60000
+      LICENSE_ADMIN_SECRET: pqf
+      LICENSE_CODE_TTL_MS: 7200000
+      LICENSE_CLEANUP_INTERVAL_MS: 60000
     volumes:
-      - /volume2/docker/file-change-serve/storage:/app/storage
+      - /volume2/docker/server/file-change-serve/storage:/app/storage
     networks:
       - common-network
     # 关键修改 3：添加重启策略，确保服务稳定
